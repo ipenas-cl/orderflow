@@ -1,0 +1,37 @@
+:root { font-family: Inter, system-ui, sans-serif; color: #1c2230; background: #f5f6fa; }
+body { margin: 0; }
+header { display: flex; gap: 1.5rem; align-items: center; padding: .75rem 1.5rem; background: #111827; color: #fff; }
+header nav { display: flex; gap: .25rem; flex: 1; }
+header nav button { background: transparent; color: #cbd5e1; border: 0; }
+header nav button.active { color: #fff; border-bottom: 2px solid #60a5fa; }
+.who { font-size: .85rem; }
+main { padding: 1.5rem; max-width: 1200px; margin: auto; }
+button { cursor: pointer; padding: .45rem .8rem; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; }
+button:disabled { opacity: .5; cursor: default; }
+button.link { border: 0; background: none; color: #2563eb; padding: 0 .5rem; }
+input, select { padding: .45rem .6rem; border: 1px solid #cbd5e1; border-radius: 6px; }
+.toolbar { display: flex; gap: .5rem; margin: .75rem 0; flex-wrap: wrap; }
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
+th, td { text-align: left; padding: .55rem .75rem; border-bottom: 1px solid #eef0f4; font-size: .9rem; }
+th { background: #f1f3f8; font-weight: 600; }
+.clickable { cursor: pointer; }
+tr.clickable:hover { background: #f8fafc; }
+.mono { font-family: ui-monospace, monospace; font-size: .85rem; }
+.muted { color: #64748b; }
+.error { color: #b91c1c; }
+.badge { font-size: .7rem; padding: .1rem .4rem; border-radius: 4px; background: #e2e8f0; color: #1e293b; margin-left: .25rem; }
+.badge.admin { background: #fde68a; } .badge.support { background: #bfdbfe; } .badge.viewer { background: #e9d5ff; }
+.status { font-size: .75rem; padding: .15rem .45rem; border-radius: 4px; background: #e2e8f0; font-weight: 600; }
+.status.DELIVERED, .status.AUTHORIZED, .status.PAID { background: #bbf7d0; }
+.status.SHIPPED, .status.IN_TRANSIT, .status.PACKED, .status.PICKING { background: #bfdbfe; }
+.status.CANCELLED, .status.FAILED, .status.DECLINED { background: #fecaca; }
+.status.REFUNDED { background: #fde68a; }
+.login { max-width: 420px; margin: 10vh auto; display: flex; flex-direction: column; gap: .6rem; background: #fff; padding: 2rem; border-radius: 12px; }
+.saga { display: flex; list-style: none; padding: 0; gap: .25rem; }
+.saga li { flex: 1; text-align: center; padding: .5rem; background: #e2e8f0; font-size: .75rem; font-weight: 600; }
+.saga li.done { background: #22c55e; color: #fff; } .saga li.aborted { background: #fecaca; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.card { background: #fff; padding: 1rem 1.25rem; border-radius: 10px; }
+.timeline { list-style: none; padding: 0; } .timeline li { padding: .3rem 0; border-left: 3px solid #60a5fa; padding-left: .6rem; margin-bottom: .2rem; }
+.timeline li.comp { border-color: #ef4444; } .timeline time { color: #64748b; font-size: .8rem; }
+.pad { padding: 2rem; }
