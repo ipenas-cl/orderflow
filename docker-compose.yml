@@ -1,0 +1,122 @@
+name: orderflow
+
+x-service: &service
+  restart: unless-stopped
+  environment: &env
+    NATS_URL: nats://nats:4222
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    OTEL_EXPORTER_OTLP_INSECURE: "true"
+    HTTP_ADDR: ":8080"
+  depends_on:
+    postgres: { condition: service_healthy }
+    nats: { condition: service_started }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: orderflow, POSTGRES_PASSWORD: orderflow, POSTGRES_DB: orderflow }
+    volumes: ["./deploy/compose/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro"]
+    ports: ["5432:5432"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U orderflow"], interval: 2s, retries: 30 }
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports: ["4222:4222", "8222:8222"]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment: { COLLECTOR_OTLP_ENABLED: "true" }
+    ports: ["16686:16686", "4318:4318"]
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+
+  payprovider:
+    build: { context: ., network: host, args: { SERVICE: payprovider } }
+    environment:
+      FAILURE_RATE: ${FAILURE_RATE:-0.1}
+      DECLINE_RATE: ${DECLINE_RATE:-0.05}
+    ports: ["8090:8090"]
+
+  devissuer:
+    build: { context: ., network: host, args: { SERVICE: devissuer } }
+    environment: { ISSUER: "http://localhost:9000/", AUDIENCE: orderflow-admin }
+    ports: ["9000:9000"]
+
+  orders:
+    <<: *service
+    build: { context: ., network: host, args: { SERVICE: orders } }
+    environment:
+      <<: *env
+      DATABASE_URL: postgres://orderflow:orderflow@postgres:5432/orders?sslmode=disable
+      OTEL_SERVICE_NAME: orders
+    ports: ["8080:8080"]
+
+  payments:
+    <<: *service
+    build: { context: ., network: host, args: { SERVICE: payments } }
+    environment:
+      <<: *env
+      DATABASE_URL: postgres://orderflow:orderflow@postgres:5432/payments?sslmode=disable
+      OTEL_SERVICE_NAME: payments
+      PROVIDER_URL: http://payprovider:8090
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-fake}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    ports: ["8081:8080"]
+
+  inventory:
+    <<: *service
+    build: { context: ., network: host, args: { SERVICE: inventory } }
+    environment:
+      <<: *env
+      DATABASE_URL: postgres://orderflow:orderflow@postgres:5432/inventory?sslmode=disable
+      OTEL_SERVICE_NAME: inventory
+    ports: ["8082:8080"]
+
+  fulfillment:
+    <<: *service
+    build: { context: ., network: host, args: { SERVICE: fulfillment } }
+    environment:
+      <<: *env
+      DATABASE_URL: postgres://orderflow:orderflow@postgres:5432/fulfillment?sslmode=disable
+      OTEL_SERVICE_NAME: fulfillment
+      FULFILLMENT_AUTOPILOT: ${FULFILLMENT_AUTOPILOT:-3s}
+      CARRIER_FAILURE_RATE: "0.1"
+    ports: ["8083:8080"]
+
+  admin:
+    <<: *service
+    build: { context: ., network: host, dockerfile: Dockerfile.admin }
+    environment:
+      <<: *env
+      DATABASE_URL: postgres://orderflow:orderflow@postgres:5432/admin?sslmode=disable
+      OTEL_SERVICE_NAME: admin
+      ORDERS_URL: http://orders:8080
+      PAYMENTS_URL: http://payments:8080
+      INVENTORY_URL: http://inventory:8080
+      FULFILLMENT_URL: http://fulfillment:8080
+      AUTH_MODE: ${AUTH_MODE:-dev}
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:9000/}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL:-http://devissuer:9000/.well-known/jwks.json}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-orderflow-admin}
+      OIDC_ROLES_CLAIM: ${OIDC_ROLES_CLAIM:-https://orderflow.dev/roles}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
+      DEV_ISSUER_PUBLIC_URL: http://localhost:9000
+    ports: ["8088:8080"]

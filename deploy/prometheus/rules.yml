@@ -1,0 +1,33 @@
+# SLOs (see docs/slo.md):
+#  - Availability: 99.9% of API requests are not 5xx (30d window)
+#  - Saga completion: 99% of orders reach a terminal state; tracked via transitions
+groups:
+  - name: orderflow-slo-recording
+    rules:
+      - record: orderflow:http_error_ratio:rate5m
+        expr: sum(rate(orderflow_http_requests_total{code=~"5.."}[5m])) / clamp_min(sum(rate(orderflow_http_requests_total[5m])), 1e-9)
+      - record: orderflow:http_error_ratio:rate1h
+        expr: sum(rate(orderflow_http_requests_total{code=~"5.."}[1h])) / clamp_min(sum(rate(orderflow_http_requests_total[1h])), 1e-9)
+      - record: orderflow:http_p99_seconds:rate5m
+        expr: histogram_quantile(0.99, sum by (le, service) (rate(orderflow_http_request_duration_seconds_bucket[5m])))
+  - name: orderflow-slo-alerts
+    rules:
+      # Multi-window burn rate (Google SRE workbook): 14.4x budget burn over 1h and 5m.
+      - alert: OrderflowErrorBudgetFastBurn
+        expr: orderflow:http_error_ratio:rate1h > (14.4 * 0.001) and orderflow:http_error_ratio:rate5m > (14.4 * 0.001)
+        labels: { severity: page }
+        annotations: { summary: "Error budget burning 14x faster than allowed", runbook: "docs/runbooks.md#error-budget-burn" }
+      - alert: PaymentProviderCircuitOpen
+        expr: max(orderflow_circuit_breaker_state) == 2
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "Payment provider circuit breaker open", runbook: "docs/runbooks.md#circuit-open" }
+      - alert: OutboxPublishFailing
+        expr: sum(rate(orderflow_outbox_publish_errors_total[5m])) > 0
+        for: 5m
+        labels: { severity: ticket }
+        annotations: { summary: "Outbox relay cannot publish to NATS", runbook: "docs/runbooks.md#outbox-backlog" }
+      - alert: MessagesDeadLettered
+        expr: sum(increase(orderflow_consumer_messages_total{result="dead_letter"}[15m])) > 0
+        labels: { severity: ticket }
+        annotations: { summary: "Messages exhausted retries", runbook: "docs/runbooks.md#dead-letters" }

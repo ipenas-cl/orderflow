@@ -1,0 +1,35 @@
+image:
+  registry: ghcr.io/ipenas-cl/orderflow
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Shared env for every service. Secrets come from an ExternalSecret / Secret named below.
+env:
+  NATS_URL: nats://nats.messaging:4222
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability:4318
+  SHUTDOWN_DRAIN_DELAY: 5s
+secretName: orderflow-secrets   # DATABASE_URL_<SERVICE>, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+
+services:
+  orders:      { replicas: 3, minReplicas: 3, maxReplicas: 12, cpu: 250m, memory: 256Mi, extraEnv: {} }
+  payments:    { replicas: 3, minReplicas: 3, maxReplicas: 12, cpu: 250m, memory: 256Mi, extraEnv: { PAYMENT_PROVIDER: stripe } }
+  inventory:   { replicas: 2, minReplicas: 2, maxReplicas: 8,  cpu: 250m, memory: 256Mi, extraEnv: {} }
+  fulfillment: { replicas: 2, minReplicas: 2, maxReplicas: 8,  cpu: 250m, memory: 256Mi, extraEnv: {} }
+  admin:
+    replicas: 2
+    minReplicas: 2
+    maxReplicas: 4
+    cpu: 100m
+    memory: 128Mi
+    image: admin
+    extraEnv:
+      AUTH_MODE: auth0
+      OIDC_ISSUER: https://YOUR_TENANT.us.auth0.com/
+      OIDC_AUDIENCE: orderflow-admin
+      ORDERS_URL: http://orderflow-orders
+      PAYMENTS_URL: http://orderflow-payments
+      INVENTORY_URL: http://orderflow-inventory
+      FULFILLMENT_URL: http://orderflow-fulfillment
+
+hpa:
+  targetCPUUtilizationPercentage: 70
